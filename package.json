@@ -1,0 +1,16 @@
+{
+	"name": "nestedresolver.sol",
+	"module": "index.ts",
+	"type": "module",
+	"scripts": {
+		"demo": "bun test/demo.ts"
+	},
+	"devDependencies": {
+		"@adraffy/blocksmith": "^0.0.38",
+		"@types/bun": "latest",
+		"ethers": "^6.13.3"
+	},
+	"peerDependencies": {
+		"typescript": "^5.0.0"
+	}
+}
