@@ -1,5 +1,6 @@
 import { Foundry } from "@adraffy/blocksmith";
 
+
 const foundry = await Foundry.launch({
 	infoLog: true
 });

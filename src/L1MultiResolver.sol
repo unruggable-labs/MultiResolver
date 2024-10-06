@@ -23,8 +23,9 @@ import "forge-std/console2.sol";
 contract L1MultiResolver is IERC165, IExtendedResolver {
     error Unauthorized(address owner);
 
+    // https://adraffy.github.io/keccak.js/test/demo.html#algo=namehash&s=addr.reverse&escape=1&encoding=utf8
     bytes32 constant ADDR_REVERSE_NODE =
-        0x91d1777781884d03a6757a803996e38de2a42967fb37eeaca72729271025a9e2; // https://adraffy.github.io/keccak.js/test/demo.html#algo=namehash&s=addr.reverse&escape=1&encoding=utf8
+        0x91d1777781884d03a6757a803996e38de2a42967fb37eeaca72729271025a9e2;
 
     mapping(bytes data => address) recordResolvers;
     mapping(bytes32 node => address) fallbackResolvers;
@@ -72,20 +73,25 @@ contract L1MultiResolver is IERC165, IExtendedResolver {
         bytes calldata,
         bytes calldata data
     ) external view returns (bytes memory) {
-		address resolver = recordResolvers[data];
+        address resolver = recordResolvers[data];
         if (resolver == address(0)) {
             bytes32 node = bytes32(data[4:36]);
             resolver = fallbackResolvers[node];
         }
         if (resolver != address(0)) {
-			bool wild;
-            try IERC165(resolver).supportsInterface{gas: 30000}(type(IExtendedResolver).interfaceId) returns (bool quacks) {
-				wild = quacks;
-			} catch {
-			}
+            bool wild;
+            try
+                IERC165(resolver).supportsInterface{gas: 30000}(
+                    type(IExtendedResolver).interfaceId
+                )
+            returns (bool quacks) {
+                wild = quacks;
+            } catch {}
             (bool ok, bytes memory v) = address(resolver).staticcall(
                 wild ? msg.data : data
             );
+            //console2.log("wild = %s / ok = %s", wild, ok);
+            //console2.logBytes(v);
             if (ok) {
                 if (!wild) v = abi.encode(v);
             } else if (wild && bytes4(v) == OffchainLookup.selector) {
@@ -108,26 +114,30 @@ contract L1MultiResolver is IERC165, IExtendedResolver {
                     abi.encode(Carry(from, callback, carry))
                 );
             }
-            if (ok) {
-                assembly {
-                    return(add(v, 32), mload(v))
-                }
-            } else {
-                assembly {
-                    revert(add(v, 32), mload(v))
-                }
-            }
+            _return(ok, v);
         }
         return new bytes(64);
     }
     function resolveCallback(
         bytes calldata response,
         bytes calldata carry
-    ) external view returns (bytes memory v) {
+    ) external view {
         Carry memory carry0 = abi.decode(carry, (Carry));
-        (, v) = carry0.from.staticcall(
+        (bool ok, bytes memory v) = carry0.from.staticcall(
             abi.encodeWithSelector(carry0.callback, response, carry0.carry)
         );
+        _return(ok, v);
+    }
+    function _return(bool ok, bytes memory v) internal pure {
+        if (ok) {
+            assembly {
+                return(add(v, 32), mload(v))
+            }
+        } else {
+            assembly {
+                revert(add(v, 32), mload(v))
+            }
+        }
     }
 
     function setFallbackResolver(
